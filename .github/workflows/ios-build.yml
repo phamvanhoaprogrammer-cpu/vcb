@@ -1,109 +1,21 @@
-name: iOS Build
+name: VCBNotificationRebuild
 
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
+options:
+  deploymentTarget:
+    iOS: "15.6"
 
-jobs:
-  build:
-    runs-on: macos-15
+targets:
+  VCBNotificationRebuild:
+    type: application
+    platform: iOS
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    sources:
+      - VCBNotificationRebuildApp.swift
 
-      - name: Select Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "16.4"
-
-      - name: Extract project ZIP
-        shell: bash
-        run: |
-          set -e
-
-          ZIP_FILE="VCBNotificationRebuild_GitHub_Actions.zip"
-
-          if [ ! -f "$ZIP_FILE" ]; then
-            echo "Không tìm thấy $ZIP_FILE"
-            ls -la
-            exit 1
-          fi
-
-          echo "Giải nén $ZIP_FILE..."
-
-          mkdir -p source
-          unzip -q "$ZIP_FILE" -d source
-
-          echo "Nội dung sau khi giải nén:"
-          find source -maxdepth 4 -print
-
-      - name: Find Xcode project
-        id: project
-        shell: bash
-        run: |
-          set -e
-
-          PROJECT=$(find source \
-            -name "VCBNotificationRebuild.xcodeproj" \
-            -type d \
-            -print -quit)
-
-          if [ -z "$PROJECT" ]; then
-            echo "Không tìm thấy VCBNotificationRebuild.xcodeproj"
-            find source -maxdepth 6 -print
-            exit 1
-          fi
-
-          echo "Tìm thấy project:"
-          echo "$PROJECT"
-
-          echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
-
-      - name: Build unsigned IPA
-        shell: bash
-        run: |
-          set -e
-
-          PROJECT="${{ steps.project.outputs.project }}"
-
-          echo "Build project: $PROJECT"
-
-          xcodebuild \
-            -project "$PROJECT" \
-            -scheme VCBNotificationRebuild \
-            -sdk iphoneos \
-            -configuration Release \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
-
-          APP_PATH="build/Build/Products/Release-iphoneos/VCBNotificationRebuild.app"
-
-          if [ ! -d "$APP_PATH" ]; then
-            echo "Không tìm thấy file .app"
-            find build -name "*.app" -print
-            exit 1
-          fi
-
-          rm -rf Payload
-          mkdir Payload
-
-          cp -R "$APP_PATH" Payload/
-
-          zip -qry VCBNotificationRebuild-unsigned.ipa Payload
-
-          rm -rf Payload
-
-          echo "===== IPA ====="
-          ls -lh VCBNotificationRebuild-unsigned.ipa
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: VCBNotificationRebuild-unsigned
-          path: VCBNotificationRebuild-unsigned.ipa
-          if-no-files-found: error
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.VCBNotificationRebuild
+        SWIFT_VERSION: 5.0
+        TARGETED_DEVICE_FAMILY: "1,2"
+        INFOPLIST_KEY_CFBundleDisplayName: "VCB Notification"
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
