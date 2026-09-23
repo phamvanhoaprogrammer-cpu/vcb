@@ -1,0 +1,85 @@
+name: iOS Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.4"
+
+      - name: Find Xcode project
+        id: project
+        shell: bash
+        run: |
+          set -e
+
+          PROJECT=$(find . -name "VCBNotificationRebuild.xcodeproj" -type d -print -quit)
+
+          if [ -z "$PROJECT" ]; then
+            echo "Không tìm thấy VCBNotificationRebuild.xcodeproj"
+            echo "Cấu trúc repository:"
+            find . -maxdepth 4 -print
+            exit 1
+          fi
+
+          echo "Tìm thấy project: $PROJECT"
+          echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
+
+      - name: Build unsigned IPA
+        shell: bash
+        run: |
+          set -e
+
+          PROJECT="${{ steps.project.outputs.project }}"
+
+          echo "Building: $PROJECT"
+
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme VCBNotificationRebuild \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+          APP_PATH="build/Build/Products/Release-iphoneos/VCBNotificationRebuild.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Không tìm thấy .app sau khi build:"
+            find build -name "*.app" -print
+            exit 1
+          fi
+
+          rm -rf Payload
+          mkdir Payload
+
+          cp -R "$APP_PATH" Payload/
+
+          rm -f VCBNotificationRebuild-unsigned.ipa
+          zip -qry VCBNotificationRebuild-unsigned.ipa Payload
+
+          rm -rf Payload
+
+          echo "IPA đã tạo:"
+          ls -lh VCBNotificationRebuild-unsigned.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: VCBNotificationRebuild-unsigned
+          path: VCBNotificationRebuild-unsigned.ipa
+          if-no-files-found: error
