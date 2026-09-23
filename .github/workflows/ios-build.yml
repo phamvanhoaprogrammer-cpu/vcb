@@ -20,22 +20,47 @@ jobs:
         with:
           xcode-version: "16.4"
 
+      - name: Extract project ZIP
+        shell: bash
+        run: |
+          set -e
+
+          ZIP_FILE="VCBNotificationRebuild_GitHub_Actions.zip"
+
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "Không tìm thấy $ZIP_FILE"
+            ls -la
+            exit 1
+          fi
+
+          echo "Giải nén $ZIP_FILE..."
+
+          mkdir -p source
+          unzip -q "$ZIP_FILE" -d source
+
+          echo "Nội dung sau khi giải nén:"
+          find source -maxdepth 4 -print
+
       - name: Find Xcode project
         id: project
         shell: bash
         run: |
           set -e
 
-          PROJECT=$(find . -name "VCBNotificationRebuild.xcodeproj" -type d -print -quit)
+          PROJECT=$(find source \
+            -name "VCBNotificationRebuild.xcodeproj" \
+            -type d \
+            -print -quit)
 
           if [ -z "$PROJECT" ]; then
             echo "Không tìm thấy VCBNotificationRebuild.xcodeproj"
-            echo "Cấu trúc repository:"
-            find . -maxdepth 4 -print
+            find source -maxdepth 6 -print
             exit 1
           fi
 
-          echo "Tìm thấy project: $PROJECT"
+          echo "Tìm thấy project:"
+          echo "$PROJECT"
+
           echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
 
       - name: Build unsigned IPA
@@ -45,7 +70,7 @@ jobs:
 
           PROJECT="${{ steps.project.outputs.project }}"
 
-          echo "Building: $PROJECT"
+          echo "Build project: $PROJECT"
 
           xcodebuild \
             -project "$PROJECT" \
@@ -59,7 +84,7 @@ jobs:
           APP_PATH="build/Build/Products/Release-iphoneos/VCBNotificationRebuild.app"
 
           if [ ! -d "$APP_PATH" ]; then
-            echo "Không tìm thấy .app sau khi build:"
+            echo "Không tìm thấy file .app"
             find build -name "*.app" -print
             exit 1
           fi
@@ -69,12 +94,11 @@ jobs:
 
           cp -R "$APP_PATH" Payload/
 
-          rm -f VCBNotificationRebuild-unsigned.ipa
           zip -qry VCBNotificationRebuild-unsigned.ipa Payload
 
           rm -rf Payload
 
-          echo "IPA đã tạo:"
+          echo "===== IPA ====="
           ls -lh VCBNotificationRebuild-unsigned.ipa
 
       - name: Upload IPA
